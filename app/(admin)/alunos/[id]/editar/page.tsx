@@ -36,7 +36,7 @@ export default function EditarAlunoPage() {
     if (!user) { window.location.href = "/login"; return; }
     const supabase = createDbClient(session.access_token);
 
-    const { data: academia } = await supabase.from("academias").select("id").eq("owner_id", user.id).single();
+    const { data: academia } = await supabase.from("academias").select("id").limit(1).single();
     if (academia) setAcademiaId(academia.id);
 
     const { data } = await supabase.from("alunos").select("*").eq("id", id).single();

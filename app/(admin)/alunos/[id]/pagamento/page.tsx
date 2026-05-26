@@ -49,7 +49,7 @@ export default function PagamentoPage() {
     if (!user) { window.location.href = "/login"; return; }
     const supabase = createDbClient(session.access_token);
 
-    const { data: academia } = await supabase.from("academias").select("id, valor_aula").eq("owner_id", user.id).single();
+    const { data: academia } = await supabase.from("academias").select("id, valor_aula").limit(1).single();
     if (!academia) { setLoadingData(false); return; }
 
     setAcademiaId(academia.id);

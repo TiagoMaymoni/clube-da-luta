@@ -74,7 +74,7 @@ export default function NovoAlunoPage() {
 
       const db = createDbClient(session.access_token);
 
-      let { data: academia } = await db.from("academias").select("id").eq("owner_id", session.user.id).single();
+      let { data: academia } = await db.from("academias").select("id").limit(1).single();
       if (!academia) {
         const { data: nova, error: errCria } = await db
           .from("academias").insert({ nome: "Clube da Luta", owner_id: session.user.id }).select("id").single();

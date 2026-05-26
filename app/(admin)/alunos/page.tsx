@@ -29,7 +29,7 @@ export default function AlunosPage() {
     const { data: academia } = await supabase
       .from("academias")
       .select("id, valor_aula")
-      .eq("owner_id", user.id)
+      .limit(1)
       .single();
 
     if (!academia) { setLoading(false); return; }

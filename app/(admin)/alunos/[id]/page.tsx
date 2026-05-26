@@ -44,7 +44,7 @@ export default function AlunoPerfilPage() {
     const { data: academia } = await supabase
       .from("academias")
       .select("id, valor_aula, mensagem_cobranca")
-      .eq("owner_id", user.id)
+      .limit(1)
       .single();
 
     if (!academia) { setLoading(false); return; }
@@ -116,7 +116,7 @@ export default function AlunoPerfilPage() {
           // Salva no Supabase Storage (cross-device)
           const { data: { session } } = await createClient().auth.getSession();
           const supabase = createDbClient(session!.access_token);
-          const { data: acad } = await supabase.from("academias").select("id").eq("owner_id", session!.user.id).single();
+          const { data: acad } = await supabase.from("academias").select("id").limit(1).single();
           if (acad) {
             await fetch("/api/descriptor", {
               method: "POST",
@@ -146,7 +146,7 @@ export default function AlunoPerfilPage() {
     if (!user || !aluno) return;
     const supabase = createDbClient(session.access_token);
 
-    const { data: academia } = await supabase.from("academias").select("id").eq("owner_id", user.id).single();
+    const { data: academia } = await supabase.from("academias").select("id").limit(1).single();
     if (!academia) return;
 
     const agora = new Date();

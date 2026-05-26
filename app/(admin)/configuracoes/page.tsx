@@ -31,7 +31,7 @@ export default function ConfiguracoesPage() {
     const { data: academia } = await supabase
       .from("academias")
       .select("*")
-      .eq("owner_id", user.id)
+      .limit(1)
       .single();
 
     if (academia) {
