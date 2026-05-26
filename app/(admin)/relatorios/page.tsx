@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient, createDbClient } from "@/lib/supabase/client";
 import { formatBRL, formatDate } from "@/lib/utils";
-import { BarChart3, Download } from "lucide-react";
+import { BarChart3, Calendar } from "lucide-react";
 
 interface RelatorioData {
   checkins: number;
@@ -14,100 +14,107 @@ interface RelatorioData {
   devedores: { nome: string; aulas: number; valor: number; telefone: string | null; foto_url: string | null }[];
 }
 
+type Periodo = "semana" | "mes" | "mes_anterior" | "total" | "custom";
+
 export default function RelatoriosPage() {
-  const [periodo, setPeriodo] = useState<"semana" | "mes" | "mes_anterior" | "total">("mes");
+  const [periodo, setPeriodo] = useState<Periodo>("mes");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
   const [dados, setDados] = useState<RelatorioData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadRelatorio();
+    if (periodo !== "custom") loadRelatorio();
   }, [periodo]);
 
   async function loadRelatorio() {
     setLoading(true);
     try {
-    const { data: { session } } = await createClient().auth.getSession();
-    const user = session?.user;
-    if (!user) { window.location.href = "/login"; return; }
-    const supabase = createDbClient(session.access_token);
+      const { data: { session } } = await createClient().auth.getSession();
+      const user = session?.user;
+      if (!user) { window.location.href = "/login"; return; }
+      const supabase = createDbClient(session.access_token);
 
-    const { data: academia } = await supabase
-      .from("academias")
-      .select("id, valor_aula")
-      .eq("owner_id", user.id)
-      .single();
+      const { data: academia } = await supabase
+        .from("academias")
+        .select("id, valor_aula")
+        .eq("owner_id", user.id)
+        .single();
 
-    if (!academia) { setLoading(false); return; }
+      if (!academia) { setLoading(false); return; }
 
-    const hoje = new Date();
-    let dataInicio = "";
+      const hoje = new Date();
+      let inicio = "";
+      let fim = "";
 
-    if (periodo === "semana") {
-      dataInicio = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-    } else if (periodo === "mes") {
-      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split("T")[0];
-    } else if (periodo === "mes_anterior") {
-      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1).toISOString().split("T")[0];
-    }
-
-    const aulasQuery = supabase.from("aulas").select("*").eq("academia_id", academia.id);
-    const pagamentosQuery = supabase.from("pagamentos").select("*").eq("academia_id", academia.id);
-
-    if (dataInicio) {
-      aulasQuery.gte("data_aula", dataInicio);
-      pagamentosQuery.gte("data_pagamento", dataInicio);
-      if (periodo === "mes_anterior") {
-        const fimMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth(), 0).toISOString().split("T")[0];
-        aulasQuery.lte("data_aula", fimMesAnterior);
-        pagamentosQuery.lte("data_pagamento", fimMesAnterior);
+      if (periodo === "semana") {
+        inicio = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+      } else if (periodo === "mes") {
+        inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split("T")[0];
+      } else if (periodo === "mes_anterior") {
+        inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1).toISOString().split("T")[0];
+        fim = new Date(hoje.getFullYear(), hoje.getMonth(), 0).toISOString().split("T")[0];
+      } else if (periodo === "custom") {
+        inicio = dataInicio;
+        fim = dataFim;
       }
-    }
 
-    const [aulasRes, pagamentosRes, alunosRes] = await Promise.all([
-      aulasQuery,
-      pagamentosQuery,
-      supabase.from("alunos").select("id, nome, foto_url, telefone, aulas_credito, status").eq("academia_id", academia.id),
-    ]);
+      const aulasQuery = supabase.from("aulas").select("*").eq("academia_id", academia.id);
+      const pagamentosQuery = supabase.from("pagamentos").select("*").eq("academia_id", academia.id);
 
-    const aulas = aulasRes.data || [];
-    const pagamentos = pagamentosRes.data || [];
-    const alunos = alunosRes.data || [];
+      if (inicio) {
+        aulasQuery.gte("data_aula", inicio);
+        pagamentosQuery.gte("data_pagamento", inicio);
+      }
+      if (fim) {
+        aulasQuery.lte("data_aula", fim);
+        pagamentosQuery.lte("data_pagamento", fim);
+      }
 
-    const recebido = pagamentos.reduce((s, p) => s + p.valor_recebido, 0);
+      const [aulasRes, pagamentosRes, alunosRes] = await Promise.all([
+        aulasQuery,
+        pagamentosQuery,
+        supabase.from("alunos").select("id, nome, foto_url, telefone, aulas_credito, status").eq("academia_id", academia.id),
+      ]);
 
-    // Saldo pendente global
-    const { data: todasPendentes } = await supabase
-      .from("aulas")
-      .select("aluno_id")
-      .eq("academia_id", academia.id)
-      .eq("status", "pendente");
+      const aulas = aulasRes.data || [];
+      const pagamentos = pagamentosRes.data || [];
+      const alunos = alunosRes.data || [];
 
-    const saldos: Record<string, number> = {};
-    (todasPendentes || []).forEach((a) => {
-      saldos[a.aluno_id] = (saldos[a.aluno_id] || 0) + 1;
-    });
+      const recebido = pagamentos.reduce((s, p) => s + p.valor_recebido, 0);
 
-    const totalAberto = Object.values(saldos).reduce((s, n) => s + n, 0) * academia.valor_aula;
+      const { data: todasPendentes } = await supabase
+        .from("aulas")
+        .select("aluno_id")
+        .eq("academia_id", academia.id)
+        .eq("status", "pendente");
 
-    const devedores = alunos
-      .filter((a) => saldos[a.id] > 0)
-      .map((a) => ({
-        nome: a.nome,
-        aulas: saldos[a.id],
-        valor: saldos[a.id] * academia.valor_aula,
-        telefone: a.telefone,
-        foto_url: a.foto_url,
-      }))
-      .sort((a, b) => b.aulas - a.aulas);
+      const saldos: Record<string, number> = {};
+      (todasPendentes || []).forEach((a) => {
+        saldos[a.aluno_id] = (saldos[a.aluno_id] || 0) + 1;
+      });
 
-    setDados({
-      checkins: aulas.length,
-      recebido,
-      alunosAtivos: alunos.filter((a) => a.status === "ativo").length,
-      alunosDevedores: Object.keys(saldos).length,
-      totalAberto,
-      devedores,
-    });
+      const totalAberto = Object.values(saldos).reduce((s, n) => s + n, 0) * academia.valor_aula;
+
+      const devedores = alunos
+        .filter((a) => saldos[a.id] > 0)
+        .map((a) => ({
+          nome: a.nome,
+          aulas: saldos[a.id],
+          valor: saldos[a.id] * academia.valor_aula,
+          telefone: a.telefone,
+          foto_url: a.foto_url,
+        }))
+        .sort((a, b) => b.aulas - a.aulas);
+
+      setDados({
+        checkins: aulas.length,
+        recebido,
+        alunosAtivos: alunos.filter((a) => a.status === "ativo").length,
+        alunosDevedores: Object.keys(saldos).length,
+        totalAberto,
+        devedores,
+      });
     } catch (err) {
       console.error("relatorio error", err);
     } finally {
@@ -120,6 +127,7 @@ export default function RelatoriosPage() {
     { key: "mes" as const, label: "Este mês" },
     { key: "mes_anterior" as const, label: "Mês anterior" },
     { key: "total" as const, label: "Tudo" },
+    { key: "custom" as const, label: "Por data" },
   ];
 
   return (
@@ -130,7 +138,7 @@ export default function RelatoriosPage() {
       </div>
 
       {/* Filtro de período */}
-      <div className="flex gap-2 mb-6 flex-wrap">
+      <div className="flex gap-2 mb-4 flex-wrap">
         {periodos.map((p) => (
           <button
             key={p.key}
@@ -141,10 +149,41 @@ export default function RelatoriosPage() {
                 : "bg-[#1A1A1A] text-[#A3A3A3] hover:bg-[#222] border border-[#2A2A2A]"
             }`}
           >
-            {p.label}
+            {p.key === "custom" ? <span className="flex items-center gap-1"><Calendar size={13} /> {p.label}</span> : p.label}
           </button>
         ))}
       </div>
+
+      {/* Inputs de data personalizada */}
+      {periodo === "custom" && (
+        <div className="flex gap-3 mb-6 items-end flex-wrap">
+          <div className="space-y-1">
+            <p className="text-[#555] text-xs uppercase tracking-widest">De</p>
+            <input
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="h-11 px-3 bg-[#1A1A1A] border border-[#2A2A2A] text-white rounded-xl focus:outline-none focus:border-[#DC2626] text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-[#555] text-xs uppercase tracking-widest">Até</p>
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+              className="h-11 px-3 bg-[#1A1A1A] border border-[#2A2A2A] text-white rounded-xl focus:outline-none focus:border-[#DC2626] text-sm"
+            />
+          </div>
+          <button
+            onClick={loadRelatorio}
+            disabled={!dataInicio}
+            className="h-11 px-5 bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-40 text-white font-heading text-sm tracking-widest rounded-xl uppercase"
+          >
+            Filtrar
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-[#555] text-center py-20 font-heading tracking-widest">CARREGANDO...</p>
