@@ -149,8 +149,10 @@ export default function AlunoPerfilPage() {
     const { data: academia } = await supabase.from("academias").select("id").eq("owner_id", user.id).single();
     if (!academia) return;
 
-    const hoje = new Date().toISOString().split("T")[0];
-    const hora = new Date().toTimeString().split(" ")[0];
+    const agora = new Date();
+    const tz = "America/Sao_Paulo";
+    const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(agora);
+    const hora = new Intl.DateTimeFormat("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(agora);
 
     const { error } = await supabase.from("aulas").insert({
       aluno_id: aluno.id,

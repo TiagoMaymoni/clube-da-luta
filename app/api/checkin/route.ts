@@ -41,8 +41,9 @@ export async function POST(req: Request) {
   }
 
   const agora = new Date();
-  const hoje = agora.toISOString().split("T")[0];
-  const hora = agora.toTimeString().split(" ")[0];
+  const tz = "America/Sao_Paulo";
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(agora);
+  const hora = new Intl.DateTimeFormat("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(agora);
   const temCredito = (aulas_credito || 0) > 0;
 
   const { error } = await supabase.from("aulas").insert({
